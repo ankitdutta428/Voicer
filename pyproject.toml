@@ -1,0 +1,23 @@
+[project]
+name = "voice-file-agent"
+version = "0.1.0"
+description = "A simple voice agent that can interact with local files"
+authors = [
+    {name = "von-development",email = "vondevelopment@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12,<4.0.0"
+dependencies = [
+    "langgraph (>=0.4.3,<0.5.0)",
+    "langchain-openai (>=0.3.16,<0.4.0)",
+    "elevenlabs (>=1.58.1,<2.0.0)",
+    "langchain-core (>=0.3.59,<0.4.0)",
+    "numpy (>=2.2.5,<3.0.0)",
+    "scipy (>=1.15.3,<2.0.0)",
+    "rich (>=14.0.0,<15.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
