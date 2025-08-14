@@ -1,81 +1,67 @@
-import uuid
-import asyncio
-from langchain_core.messages import HumanMessage
-from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.memory import InMemorySaver
-from .audio import AudioProcessor
-from .tools import get_file_tools
+# core/agent.py
 
-class VoiceAgent:
+import os
+from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
+from langchain.agents import AgentExecutor, create_react_agent
+from langchain_core.prompts import ChatPromptTemplate
+from langchain import hub
+
+# Import your custom file-handling tools
+from .tools import WriteFileTool, ReadFileTool, ListDirectoryTool, DeleteFileTool, CreateDirectoryTool
+
+# --- AGENT INITIALIZATION ---
+class ReactAgent:
     """
-    A voice-enabled agent that uses LangGraph to understand user commands
-    and perform file operations using prebuilt tools.
-
-    This class:
-    - Maintains conversation context across voice interactions
-    - Connects to a prebuilt ReAct agent from LangGraph
-    - Sends user messages to the agent and handles its responses
+    The "Brain" of the application. It uses a language model via OpenRouter
+    to process user requests and decide which tools to use.
     """
-
     def __init__(self):
-        """
-        Initialize the voice agent.
+        # --- THIS IS THE FIX ---
+        # Load the .env file to get the OpenRouter API key
+        load_dotenv()
+        openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
 
-        Sets up:
-        - An audio processor for voice I/O
-        - A unique thread ID for stateful interaction
-        - A LangGraph ReAct agent using built-in file tools
-        """
-        self.audio_processor = AudioProcessor()
-        self.thread_id = str(uuid.uuid4())
-        self.conversation_history = []
+        if not openrouter_api_key:
+            raise ValueError("OPENROUTER_API_KEY not found in .env file. Please check your configuration.")
 
-        # In-memory checkpointing for conversation state
-        self.checkpointer = InMemorySaver()
+        # Initialize the Chat Client to use OpenRouter
+        # We point it to the OpenRouter URL and provide your key.
+        # We'll use a fast and capable model like Claude 3 Haiku.
+        self.llm = ChatOpenAI(
+            model="deepseek/deepseek-r1-0528:free",
+            api_key=openrouter_api_key,
+            base_url="https://openrouter.ai/api/v1",
+            temperature=0,
+            streaming=True,
+        )
+        # --- END OF FIX ---
 
-        # Create the ReAct agent with LangGraph
-        self.agent = create_react_agent(
-            model="gpt-4.1-mini",
-            tools=get_file_tools(),
-            checkpointer=self.checkpointer,
-            prompt="""
-            You are a helpful voice-enabled assistant specialized in file management. 
-            You can list directories, read, write, copy, move, delete, and search for files. 
-            Keep responses short and clear, since they will be spoken to the user. 
-            Always acknowledge the command before executing it.
-            """
+        # Define the tools the agent can use
+        self.tools = [WriteFileTool(), ReadFileTool()]
+        
+        # Get the ReAct agent prompt from LangChain Hub
+        prompt = hub.pull("hwchase17/react")
+        
+        # Create the agent by binding the tools to the LLM
+        agent = create_react_agent(self.llm, self.tools, prompt)
+        
+        # Create the agent executor, which runs the agent's thought process
+        self.agent_executor = AgentExecutor(
+            agent=agent, 
+            tools=self.tools, 
+            verbose=True, # Set to True to see the agent's thoughts
+            handle_parsing_errors=True, # Helps prevent crashes on weird outputs
+            max_iterations=10 # Prevents infinite loops
         )
 
-    async def process_user_input(self, user_message: HumanMessage):
+    def get_agent_response(self, user_message, thread_id: str):
         """
-        Process a single user message and return the agent's response.
-
-        Args:
-            user_message (HumanMessage): A text message generated from the user's voice input.
-
-        Returns:
-            str: The agent's final text response.
+        Invokes the agent to get a response for the user's message.
+        (Note: thread_id is included for future stateful conversation)
         """
-        try:
-            # Add the incoming message to the conversation history
-            self.conversation_history.append(user_message)
+        response = self.agent_executor.invoke({
+            "input": user_message.content,
+        })
+        return response
 
-            # Use a unique thread ID for conversation continuity
-            config = {"thread_id": self.thread_id}
-            thread_config = {"configurable": config}
-
-            # Send the message to the agent and get the full response trace
-            response = await self.agent.ainvoke(
-                {"messages": self.conversation_history},
-                config=thread_config
-            )
-
-            # Get the last message as the final response
-            final_response = response["messages"][-1].content
-            self.conversation_history.append(response["messages"][-1])
-            return final_response
-
-        except Exception as e:
-            error_message = f"I encountered an error: {str(e)}"
-            print(error_message)
-            return error_message

@@ -1,94 +1,67 @@
 import asyncio
-from core.agent import VoiceAgent
-from core.config import CLI_THEME
+import uuid  # <-- ADDED IMPORT
 from rich.console import Console
 from rich.panel import Panel
-from rich.live import Live
-from rich.spinner import Spinner
-import time
 
-# Initialize rich console with our theme
-console = Console(theme=CLI_THEME)
+# Correctly import ReactAgent
+from core.agent import ReactAgent
+from core.audio import AudioProcessor
+
+# Set up the console (assuming a theme might be in your config)
+try:
+    from core.config import CLI_THEME
+    console = Console(theme=CLI_THEME)
+except (ImportError, KeyError):
+    console = Console()
+
 
 async def run_voice_agent():
     """
-    Start the main loop for the voice agent.
-
-    This continuously:
-    - Records the user's voice input
-    - Transcribes it to text
-    - Sends the text to the LangGraph agent
-    - Speaks back the result
-    Press Ctrl+C to exit the loop.
+    The main asynchronous loop for the voice agent.
     """
-    agent = VoiceAgent()
+    # 1. Initialize the agent and audio processor
+    agent = ReactAgent()
+    audio_processor = AudioProcessor()
 
-    # Welcome message
-    console.print(Panel.fit(
-        "[agent]🎙️ Voice Agent[/agent] is ready! Press [warning]Ctrl+C[/warning] to exit.",
-        title="Welcome",
-        border_style="agent"
-    ))
-    console.print(f"[system]Thread ID:[/system] {agent.thread_id}")
+    # 2. Create a unique thread ID for this conversation session
+    thread_id = str(uuid.uuid4())
+    
+    # 3. Print the welcome message with the session ID
+    welcome_message = "🎙️ Voice Agent is ready! Press Ctrl+C to exit."
+    console.print(Panel(welcome_message, title="Welcome", subtitle=f"Session ID: {thread_id}"))
 
-    while True:
-        try:
-            # Recording status
-            with Live(
-                Spinner("dots", text="[recording]Recording your instruction...[/recording] Press Enter to stop."),
-                console=console,
-                refresh_per_second=10,
-                transient=True
-            ) as live:
-                user_message = agent.audio_processor.record_audio()
+    try:
+        while True:
+            try:
+                # Record and transcribe user input
+                user_message = audio_processor.record_audio()
 
-            # Show transcribed text
-            console.print("\n[user]You said:[/user]")
-            console.print(Panel(
-                user_message.content,
-                border_style="user"
-            ))
+                if not user_message.content or "try again" in user_message.content.lower():
+                    console.print("[warning]Skipping empty or unclear audio.[/warning]")
+                    continue
+                
+                console.print("[thinking]Processing your request...[/thinking]")
+                
+                # 4. Pass the thread_id to the agent with each call
+                agent_response = agent.get_agent_response(user_message, thread_id=thread_id)
+                
+                # Speak the agent's response
+                audio_processor.speak_response(agent_response.content)
 
-            # Processing status
-            with Live(
-                Spinner("dots", text="[thinking]Processing your request...[/thinking]"),
-                console=console,
-                refresh_per_second=10,
-                transient=True
-            ) as live:
-                response = await agent.process_user_input(user_message)
+            except KeyboardInterrupt:
+                # This allows gracefully exiting the loop with Ctrl+C
+                console.print("\n[bold cyan]Voice agent shutting down.[/bold cyan]")
+                break
+            except Exception as e:
+                console.print(f"[error]An unexpected error occurred: {e}[/error]")
+                continue
 
-            # Show agent's response
-            console.print("\n[agent]Agent:[/agent]")
-            console.print(Panel(
-                response,
-                border_style="agent"
-            ))
-
-            # Speaking status
-            with Live(
-                Spinner("dots", text="[speaking]Speaking response...[/speaking]"),
-                console=console,
-                refresh_per_second=10,
-                transient=True
-            ) as live:
-                agent.audio_processor.speak_response(response)
-
-            # Add a small pause between interactions
-            time.sleep(0.5)
-            console.print()
-
-        except KeyboardInterrupt:
-            console.print("\n[warning]Goodbye![/warning]")
-            break
-
-        except Exception as e:
-            error_message = f"An error occurred: {str(e)}"
-            console.print(f"\n[error]{error_message}[/error]")
-            agent.audio_processor.speak_response(error_message)
+    except KeyboardInterrupt:
+        # This handles a Ctrl+C pressed outside the recording input
+        console.print("\n[bold cyan]Voice agent shut down by user.[/bold cyan]")
 
 if __name__ == "__main__":
     try:
         asyncio.run(run_voice_agent())
     except KeyboardInterrupt:
-        console.print("\n[warning]Exiting...[/warning]") 
+        pass

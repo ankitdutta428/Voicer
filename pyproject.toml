@@ -1,9 +1,9 @@
 [project]
 name = "voice-file-agent"
-version = "0.1.0"
+version = "0.0.1"
 description = "A simple voice agent that can interact with local files"
 authors = [
-    {name = "von-development",email = "vondevelopment@gmail.com"}
+    {name = "Ankit Dutta",email = "ankitduttaiitkgp@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.12,<4.0.0"

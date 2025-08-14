@@ -1,102 +1,194 @@
-# Voice File Agent
+Voicer - The latest product of Minerva AI
+A robust, voice-controlled file management agent that lets you manage your local file system using natural language commands. This project is built using a custom stack of best-in-class free API tiers, including OpenRouter for intelligence, Hugging Face for transcription, and ElevenLabs for voice output.
 
-A voice-controlled file management agent that lets you manage your files using natural language voice commands. Built with LangGraph, OpenAI, and ElevenLabs.
+Features
+Natural Language Voice Commands: Speak naturally to your computer to manage files.
 
-## Features
+Intelligent Agent Brain: Uses OpenRouter to access powerful language models (e.g., Claude 3 Haiku) to understand complex commands.
 
-- Voice input for natural language commands
-- Intelligent file management using LangGraph's ReAct agent
-- Voice feedback using ElevenLabs
-- Supports common file operations (e.g read files, copy, delete...)
+Free Tier Speech-to-Text: Leverages the Hugging Face Inference API for fast and free audio transcription.
 
-## Architecture
+Realistic Voice Feedback: Uses ElevenLabs for high-quality, natural-sounding voice responses.
 
-The agent follows a modular pipeline:
+Comprehensive File Operations:
 
-1. **Voice Input** – Audio is captured from your microphone
-2. **Transcription** – Audio is converted to text using OpenAI's gpt-4o-mini-transcribe
-3. **LangGraph Agent** – The prebuilt React agent interprets the command
-4. **File Tools** – One of the tools is selected to perform the action
-5. **Text Response** – The agent generates a natural language reply
-6. **Voice Output** – The response is spoken using ElevenLabs
+Create and write to files (write_file)
 
-![Voice File Agent Architecture](static/agent_design.png)
+Read the contents of files (read_file)
 
-## Getting Started
+List files and folders in a directory (list_directory)
 
-### Installation
+Delete files (delete_file)
 
-1. Clone the repository:
+Create new directories (create_directory)
+
+The Final Working Architecture
+This project went through significant debugging. The final, stable architecture is as follows:
+
+Voice Input: Audio is captured from a specific microphone device on your machine using sounddevice.
+
+Transcription (Ears): The raw audio is sent to the Hugging Face Inference API to be transcribed into text by a Whisper model.
+
+Agent Brain: The transcribed text is sent to a ReAct Agent powered by OpenRouter, which decides which action to take.
+
+File Tools (Hands): The agent selects a custom, robust Python tool (write_file, read_file, etc.) to execute the desired file system operation.
+
+Text Response: The result of the action (e.g., "File created successfully") is generated.
+
+Voice Output (Voice): The text response is sent to the ElevenLabs API to be converted into speech and played back.
+
+Getting Started
+Prerequisites
+Python 3.9+
+
+Git
+
+An internet connection
+
+1. Installation
+First, clone the repository and navigate into the project directory.
+
 ```bash
-git clone https://github.com/your-username/voice-file-agent.git
-cd voice-file-agent
+git clone https://github.com/ankitdutta428/Voicer.git
+cd voicer
 ```
 
-2. Install dependencies using Poetry:
+Next, create a requirements.txt file in the main project folder and paste the following dependencies into it:
+
+requirements.txt
+
+```
+text
+langchain
+langchain-openai
+langchain-community
+openai
+python-dotenv
+sounddevice
+numpy
+scipy
+requests
+rich
+elevenlabs
+```
+Now, install all the required libraries using pip:
+
 ```bash
-poetry install
+pip install -r requirements.txt
 ```
+2. Set Up API Keys
+This project requires three separate API keys. Create a file named .env in the root of your project folder.
 
-3. Create a `.env` file in the project root:
-```env
-OPENAI_API_KEY="your-openai-api-key"
-ELEVENLABS_API_KEY="your-elevenlabs-api-key"
-```
-
-## Usage
-
-1. Start the agent:
 ```bash
-poetry run python main.py
+# For Windows
+copy con .env
+# For macOS/Linux
+touch .env
+```
+Now, edit the .env file and add your keys like this.
+
+.env
+
+text
+```
+# For the LLM "Brain" - https://openrouter.ai/
+OPENROUTER_API_KEY="your_openrouter_key_starting_with_sk-or"
+
+# For Text-to-Speech "Voice" - https://elevenlabs.io/
+ELEVEN_API_KEY="your_elevenlabs_api_key"
+
+# For Speech-to-Text "Ears" - https://huggingface.co/settings/tokens
+HUGGINGFACE_API_KEY="your_hugging_face_token_starting_with_hf_"
 ```
 
-2. Wait for the welcome message:
+3. Configure Your Microphone (Crucial Step!)
+The application needs to know exactly which microphone to listen to. To avoid errors, we must find your microphone's specific ID.
+
+A. Find Your Microphone ID:
+Create a temporary Python file named check_mic.py and paste this code into it:
+
+```python
+# check_mic.py
+import sounddevice as sd
+print("Searching for audio devices...")
+print(sd.query_devices())
 ```
-╭─────────────────── Welcome ───────────────────╮
-│ 🎙️ Voice Agent is ready! Press Ctrl+C to exit. │
-╰───────────────────────────────────────────────╯
+Run this script from your terminal:
+
+```bash
+python check_mic.py
 ```
+Look through the output list for your primary microphone. You will see a number at the start of the line, like > 1 Microphone (Realtek(R) Audio), MME. The number 1 is your device ID.
 
-3. Speak your command when prompted. For example:
-   - "List all files in the current directory"
-   - "Create a new file called notes.txt"
-   - "Read the contents of config.json"
-   - "Move file.txt to the backup folder"
-   - "Delete old_document.pdf"
+B. Update the Configuration:
+Open the core/config.py file and change the MICROPHONE_DEVICE_ID to the number you just found.
 
-4. Press Enter to stop recording your command.
+```python
+# core/config.py
 
-5. The agent will:
-   - Process your command
-   - Show the transcribed text
-   - Execute the requested file operation
-   - Speak back the result
+# ... other code ...
 
-6. To exit the agent, press Ctrl+C.
+# --- Audio Settings ---
+# Change this number to match your device ID from the check_mic.py script
+MICROPHONE_DEVICE_ID = 1 
+# ... rest of the code ...
+```
+Usage
+You are now ready to run the agent!
 
-## Example Commands
+Start the agent from your terminal:
 
-Here are some example voice commands you can try:
+```bash
+python main.py
+```
+Wait for the welcome message. When you see "Start speaking...", say your command clearly.
 
-- "Show me what's in this folder"
-- "Create a new file called todo.txt with the text 'Buy groceries'"
-- "Read the contents of config.json"
-- "Copy important.pdf to the backup folder"
-- "Move old_document.txt to the archive folder"
-- "Delete temporary.txt"
-- "Search for all PDF files in this directory"
+Press the Enter key when you are finished speaking.
 
-## Configuration
+The agent will show its thought process in the terminal, execute the command, and speak the result back to you.
 
-The agent's behavior can be customized by modifying `core/config.py`:
+To exit the agent, press Ctrl+C in the terminal.
 
-- Voice settings (stability, similarity, style)
-- Sample rate for audio recording
-- Voice ID for ElevenLabs
-- Model settings
-- CLI theme and colors
+Example Commands
+"Make me a file with name ideas.txt and write down 'Build a voice agent'."
 
-## Contributing
+"Show me all the files in this directory."
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+"What are the contents of requirements.txt?"
 
+"Create a new folder called archive."
+
+"Delete the file ideas.txt."
+
+How It Works: The ReAct Agent Loop
+A common point of confusion is seeing JSON in the logs. This is not your input; it is the AI agent's internal thought process.
+
+Thought: The AI brain receives your English command (e.g., "Create a file called test.txt") and thinks about what to do.
+
+Action: It decides which tool to use (write_file) and creates a structured, machine-readable JSON instruction for that tool. This is what you see in the logs (Action Input: {"file_path": "test.txt", ...}).
+
+Observation: The tool runs with the JSON instruction and returns a result (e.g., "Successfully wrote to test.txt").
+
+Thought: The AI brain observes this result and decides if the task is complete or if another step is needed. If complete, it generates the final spoken response.
+
+Troubleshooting
+Microphone Not Recording / Script Hangs: This is almost always a permissions issue or an incorrect device ID.
+
+Ensure you have set the correct MICROPHONE_DEVICE_ID in core/config.py.
+
+Check your OS settings (Windows Privacy > Microphone or macOS System Settings > Privacy & Security > Microphone) to ensure your terminal/Python has permission to access the microphone.
+
+401 Unauthorized Error: This means an API key is wrong.
+
+If the error happens during transcription, check your HUGGINGFACE_API_KEY.
+
+If the error happens after transcription ("Processing your request..."), check your OPENROUTER_API_KEY.
+
+If the error happens during voice output, check your ELEVEN_API_KEY.
+
+503 Service Unavailable or 504 Gateway Timeout from Hugging Face: This can happen with the free API tier if the model is under heavy load or needs to "wake up." Simply wait a minute and try your command again.
+
+PydanticUserError or other LangChain errors: The Python ecosystem moves fast. This usually indicates a library version mismatch. Ensure your installed packages match the requirements.txt file.
+
+Contributing
+Contributions are welcome! If you've improved the tools or added new functionality, please feel free to submit a Pull Request.
